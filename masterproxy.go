@@ -4,15 +4,25 @@ import (
   "github.com/elazarl/goproxy"
   "net/http"
   "net/url"
-  "sync"
 )
 
+/*
+  TODO:
+
+  currently the master proxy takes a happy-path approach and does not deal with
+  http request timeouts or slaves dying. handle these exceptional cases.
+
+ */
 type MasterProxy struct {
-  slaveProxies *SlaveProxies
+  slaveProxies Slaves
 
 }
 
-func NewMasterProxy(slaveProxies *SlaveProxies) *MasterProxy {
+type Slaves interface {
+  GetURLs() []url.URL
+}
+
+func NewMasterProxy(slaveProxies Slaves) *MasterProxy {
   master := MasterProxy{slaveProxies: slaveProxies}
   return &master
 }
@@ -28,37 +38,8 @@ func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
   return nil, nil
 }
 
-
 type MasterProxyConfig struct {
   slaveProxyPort uint16
-}
-
-
-/* keeps track of current slave proxies */
-type SlaveProxies struct {
-
-  slaves map[SlaveContact]bool
-  mutex *sync.Mutex
-}
-
-func NewSlaveProxies(port uint16) *SlaveProxies {
-  return nil
-}
-
-func (ps *SlaveProxies) Run() {
-
-}
-
-func (ps *SlaveProxies) GetURLs() []url.URL {
-  urls := []url.URL{}
-  for slave := range ps.slaves {
-    urls = append(urls, slave.url)
-  }
-  return urls
-}
-
-type SlaveContact struct {
-  url url.URL
 }
 
 func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
@@ -73,11 +54,9 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   proxy := goproxy.NewProxyHttpServer()
   proxy.Verbose = true
 
-  transport := http.Transport{Proxy: masterProxy.Proxy}
+  transport := &http.Transport{Proxy: masterProxy.Proxy}
   proxy.Tr = transport
   proxy.OnRequest().DoFunc(masterProxy.OnRequest)
-
-  // make it do it's work in the background
 
   return proxy
 }
