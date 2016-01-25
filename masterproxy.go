@@ -71,7 +71,6 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   masterProxy := NewMasterProxy(slaveProxies)
 
   proxy := goproxy.NewProxyHttpServer()
-  proxy.Verbose = true
 
   transport := &http.Transport{Proxy: masterProxy.Proxy}
   proxy.Tr = transport
