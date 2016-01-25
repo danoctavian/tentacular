@@ -4,9 +4,17 @@ import (
   "github.com/elazarl/goproxy"
   "net/http"
   "net/url"
+  "math/rand"
+  "errors"
 )
 
 /*
+
+  Current features:
+
+  * load balancing on a set of slave proxies.
+  * no timing policies.
+
   TODO:
 
   currently the master proxy takes a happy-path approach and does not deal with
@@ -15,7 +23,6 @@ import (
  */
 type MasterProxy struct {
   slaveProxies Slaves
-
 }
 
 type Slaves interface {
@@ -27,15 +34,27 @@ func NewMasterProxy(slaveProxies Slaves) *MasterProxy {
   return &master
 }
 
-/* handle an incoming request */
+/* handle an incoming request
+   does nothing for now
+*/
 func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
-  return nil, nil
+  return r, nil
 }
 
 /* handle a request on its way out to be proxied */
 func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
+  slaves := p.slaveProxies.GetURLs()
 
-  return nil, nil
+  slaveCount := len(slaves)
+  if slaveCount == 0 {
+    // can also be handled by having the master dispatch by himself
+    return nil, errors.New("No slave proxies to dispatch to.")
+  }
+
+  /* load balance by randomly distributing */
+  chosenSlave := rand.Int() % slaveCount
+
+  return &slaves[chosenSlave], nil
 }
 
 type MasterProxyConfig struct {
