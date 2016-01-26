@@ -1,7 +1,6 @@
 package main
 import (
   "time"
-  "net/url"
   "net/http"
   "log"
   "strconv"
@@ -20,47 +19,50 @@ type SlaveProxies struct {
     the URLs have changed and needs to reread them (grabbing the lock) or just refetch
     a cached copy of the last value
   */
-  slaves *map[url.URL] *SlaveContact
+  slaves *map[string] *SlaveContact
   mutex *sync.Mutex
 }
 
 func NewSlaveProxies(port uint16) *SlaveProxies {
 
-  mp := make(map[url.URL]*SlaveContact)
+  mp := make(map[string]*SlaveContact)
   return &SlaveProxies{port, &mp, &sync.Mutex{}}
 }
 
-func (ps *SlaveProxies) addSlave(url url.URL) {
+func (ps *SlaveProxies) addSlave(addr string) {
+  log.Println("Adding slave with addr " + addr)
   ps.mutex.Lock()
   defer ps.mutex.Unlock()
-  if val, ok := (*ps.slaves)[url]; ok {
+  if val, ok := (*ps.slaves)[addr]; ok {
     val.lastSeen = time.Now()
   } else {
-    (*ps.slaves)[url] = &SlaveContact{url: url, lastSeen: time.Now()}
+    (*ps.slaves)[addr] = &SlaveContact{addr: addr, lastSeen: time.Now()}
   }
 }
 
-func (ps *SlaveProxies) removeSlave(url url.URL) {
+func (ps *SlaveProxies) removeSlave(addr string) {
+  log.Println("Removing slave with addr " + addr)
   ps.mutex.Lock()
   defer ps.mutex.Unlock()
-  delete(*ps.slaves, url)
+  delete(*ps.slaves, addr)
 }
 
 func (ps *SlaveProxies) Run() {
 
   http.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
-    ps.addSlave(*r.URL)
+    ps.addSlave(r.RemoteAddr)
     w.WriteHeader(200)
   })
 
   http.HandleFunc("/leave", func(w http.ResponseWriter, r *http.Request) {
+    ps.removeSlave(r.RemoteAddr)
     w.WriteHeader(200)
   })
 
   log.Fatal(http.ListenAndServe(":" + strconv.Itoa(int(ps.port)), nil))
 }
 
-func (ps *SlaveProxies) regularCleanup() []url.URL {
+func (ps *SlaveProxies) regularCleanup() {
   for {
     time.Sleep(SLAVE_CLEANUP_INTERVAL)
 
@@ -69,7 +71,7 @@ func (ps *SlaveProxies) regularCleanup() []url.URL {
       ps.mutex.Lock()
       defer ps.mutex.Unlock()
 
-      toBeRemoved := []url.URL{}
+      toBeRemoved := []string{}
 
       for url, slave := range *ps.slaves {
         if now.Sub(slave.lastSeen).Seconds() >= SLAVE_CLEANUP_INTERVAL.Seconds() {
@@ -84,11 +86,11 @@ func (ps *SlaveProxies) regularCleanup() []url.URL {
   }
 }
 
-func (ps *SlaveProxies) GetURLs() []url.URL {
+func (ps *SlaveProxies) GetAddresses() []string {
   ps.mutex.Lock()
   defer ps.mutex.Unlock()
 
-  urls := []url.URL{}
+  urls := []string{}
   for url := range *ps.slaves {
     urls = append(urls, url)
   }
@@ -96,7 +98,7 @@ func (ps *SlaveProxies) GetURLs() []url.URL {
 }
 
 type SlaveContact struct {
-  url url.URL
+  addr string
   lastSeen time.Time
 }
 

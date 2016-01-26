@@ -26,7 +26,7 @@ type MasterProxy struct {
 }
 
 type Slaves interface {
-  GetURLs() []url.URL
+  GetAddresses() []string
 }
 
 func NewMasterProxy(slaveProxies Slaves) *MasterProxy {
@@ -43,7 +43,7 @@ func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Req
 
 /* handle a request on its way out to be proxied */
 func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
-  slaves := p.slaveProxies.GetURLs()
+  slaves := p.slaveProxies.GetAddresses()
 
   slaveCount := len(slaves)
   if slaveCount == 0 {
@@ -52,9 +52,9 @@ func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
   }
 
   /* load balance by randomly distributing */
-  chosenSlave := rand.Int() % slaveCount
+  chosenSlave, err := url.Parse(slaves[rand.Int() % slaveCount])
 
-  return &slaves[chosenSlave], nil
+  return chosenSlave, err
 }
 
 type MasterProxyConfig struct {

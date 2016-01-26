@@ -7,11 +7,14 @@ import (
   "syscall"
   "log"
   "net/http"
+  "time"
 )
 
 type SlaveProxyConfig struct {
   masterURL url.URL
 }
+
+const SLAVE_HEARTBEAT_INTERVAL = 500 * time.Millisecond
 
 func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
 
@@ -36,6 +39,7 @@ func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
   go func() {
     //heartbeat the master
     for {
+      time.Sleep(SLAVE_CLEANUP_INTERVAL)
       _, err := http.Get(config.masterURL.String() + "/join")
       if err != nil {
         log.Println("No master available at " + config.masterURL.String())
