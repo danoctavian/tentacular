@@ -65,6 +65,11 @@ func (ps *SlaveProxies) Run() {
   log.Fatal(http.ListenAndServe(":" + portStr, nil))
 }
 
+/*
+FIXME: this does not deal well with IPv6 in particular
+with the IPv6 loopback address :::1. further down the line
+this is converted to a URL, and the URL is not legit "http://:::1:8080"
+ */
 func remoteSlaveAddress(r *http.Request) string {
   host, _, _ := net.SplitHostPort(r.RemoteAddr)
   port := r.URL.Query().Get("port") // get the advertised port
