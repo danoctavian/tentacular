@@ -20,7 +20,7 @@ func main() {
 
   slaveport := uint16(*flag.Uint("slaveport", 6666, "port for slaves to contact"))
 
-  urlString := *flag.String("masterurl", "http://localhost:6666", "url of the master proxy")
+  urlString := *flag.String("masterurl", "http://127.0.0.1:6666", "url of the master proxy")
 
   flag.Parse()
 
@@ -39,7 +39,7 @@ func main() {
     }
 
     log.Print("Launching a slave proxy")
-    proxyServer = NewSlaveProxyServer(SlaveProxyConfig{masterURL: *url})
+    proxyServer = NewSlaveProxyServer(SlaveProxyConfig{port: *port, masterURL: *url})
   }
 
   proxyServer.Verbose = true

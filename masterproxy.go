@@ -52,7 +52,7 @@ func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
   }
 
   /* load balance by randomly distributing */
-  chosenSlave, err := url.Parse(slaves[rand.Int() % slaveCount])
+  chosenSlave, err := url.Parse("http://" + slaves[rand.Int() % slaveCount])
 
   return chosenSlave, err
 }

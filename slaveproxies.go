@@ -5,6 +5,7 @@ import (
   "log"
   "strconv"
   "sync"
+  "net"
 )
 
 /* keeps track of current slave proxies */
@@ -49,17 +50,25 @@ func (ps *SlaveProxies) removeSlave(addr string) {
 
 func (ps *SlaveProxies) Run() {
 
+  portStr := strconv.Itoa(int(ps.port))
+
   http.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
-    ps.addSlave(r.RemoteAddr)
+    ps.addSlave(remoteSlaveAddress(r))
     w.WriteHeader(200)
   })
 
   http.HandleFunc("/leave", func(w http.ResponseWriter, r *http.Request) {
-    ps.removeSlave(r.RemoteAddr)
+    ps.removeSlave(remoteSlaveAddress(r))
     w.WriteHeader(200)
   })
 
-  log.Fatal(http.ListenAndServe(":" + strconv.Itoa(int(ps.port)), nil))
+  log.Fatal(http.ListenAndServe(":" + portStr, nil))
+}
+
+func remoteSlaveAddress(r *http.Request) string {
+  host, _, _ := net.SplitHostPort(r.RemoteAddr)
+  port := r.URL.Query().Get("port") // get the advertised port
+  return host + ":" + port
 }
 
 func (ps *SlaveProxies) regularCleanup() {

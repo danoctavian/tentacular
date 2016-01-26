@@ -8,15 +8,21 @@ import (
   "log"
   "net/http"
   "time"
+  "strconv"
 )
 
 type SlaveProxyConfig struct {
+  port uint
   masterURL url.URL
 }
 
 const SLAVE_HEARTBEAT_INTERVAL = 500 * time.Millisecond
 
 func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
+
+  portStr := strconv.Itoa(int(config.port))
+  // this is rather unnecessary mostly because the master does a cleanup.
+  // TODO: consider form removal
 
   // listen for kill signals to be able to tell the master you are shutting down
   ch := make(chan os.Signal, 1)
@@ -27,7 +33,7 @@ func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
 
     log.Println("Exit command received. Notifying master of death.")
 
-    _, err := http.Get(config.masterURL.String() + "/leave")
+    _, err := http.Get(config.masterURL.String() + "/leave?port=" + portStr)
     if err != nil {
       log.Println("No master available at " + config.masterURL.String())
     }
@@ -40,7 +46,7 @@ func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
     //heartbeat the master
     for {
       time.Sleep(SLAVE_CLEANUP_INTERVAL)
-      _, err := http.Get(config.masterURL.String() + "/join")
+      _, err := http.Get(config.masterURL.String() + "/join?port=" + portStr)
       if err != nil {
         log.Println("No master available at " + config.masterURL.String())
       }
