@@ -6,6 +6,7 @@ import (
   "net/url"
   "math/rand"
   "errors"
+  "net"
 )
 
 /*
@@ -24,6 +25,8 @@ import (
 type MasterProxy struct {
   slaveProxies Slaves
   throttleConfig ThrottleConfig
+
+  domainSemaphores *MapTable
 }
 
 type Slaves interface {
@@ -42,14 +45,30 @@ func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http
   return r
 }
 
+
+// FIXME: there is no cleanup for the domain semaphore once created. this can become a problem
 func (p *MasterProxy) applyRequestLimitOnRequest(r *http.Request) {
-  if p.throttleConfig.MaxConcurrentRequestsPerDomain != nil {
+  if p.hasConcurrentRequestLimit() {
+    keyHash, key := addrKeyHash(r.RemoteAddr)
+    domainSemaphore := p.domainSemaphores.Get(keyHash, key).(Semaphore)
+    if domainSemaphore != nil {
+      domainSemaphore.Acquire(1)
+    } else {
+      semaphore := make(Semaphore, *p.throttleConfig.MaxConcurrentRequestsPerDomain)
+      p.domainSemaphores.Add(keyHash, key, semaphore)
+    }
   }
 }
 
 func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
-  if p.throttleConfig.MaxConcurrentRequestsPerDomain != nil {
-
+  if p.hasConcurrentRequestLimit() {
+    keyHash, key := addrKeyHash(r.Request.RemoteAddr)
+    domainSemaphore := p.domainSemaphores.Get(keyHash, key).(Semaphore)
+    if domainSemaphore != nil {
+      domainSemaphore.Release(1)
+    } else {
+      panic("Cannot have a response before a request.")
+    }
   }
 }
 
@@ -86,7 +105,12 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   // launch handling of slave proxies
   go slaveProxies.Run()
 
+
   masterProxy := MasterProxy{slaveProxies: slaveProxies, throttleConfig: config.throttleConfig}
+  if masterProxy.hasConcurrentRequestLimit() {
+    mapTable := NewMapTable(1000)
+    masterProxy.domainSemaphores = mapTable
+  }
 
   proxy := goproxy.NewProxyHttpServer()
 
@@ -96,4 +120,13 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   proxy.OnResponse().DoFunc(masterProxy.OnResponse)
 
   return proxy
+}
+
+func (p* MasterProxy) hasConcurrentRequestLimit() bool {
+  return p.throttleConfig.MaxConcurrentRequestsPerDomain != nil
+}
+
+func addrKeyHash(remoteAddr string) (uint32, string) {
+  host, _, _ := net.SplitHostPort(remoteAddr)
+  return HashString(host), host
 }

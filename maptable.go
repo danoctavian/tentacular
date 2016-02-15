@@ -55,6 +55,15 @@ func (mt *MapTable) Delete(keyHash uint32, key interface{}) {
   delete(*bucket.contents, key)
 }
 
+func (mt *MapTable) Has(keyHash uint32, key interface{}) bool {
+  bucket := mt.getBucket(keyHash)
+
+  bucket.mutex.Lock()
+  defer bucket.mutex.Unlock()
+  _, present := (*bucket.contents)[key]
+  return present
+}
+
 func (mt *MapTable) getBucket(keyHash uint32) Bucket {
   return mt.table[int(keyHash) % len(mt.table)]
 }
