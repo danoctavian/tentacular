@@ -38,10 +38,12 @@ type Slaves interface {
    does nothing for now
 */
 func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
+  p.applyRequestLimitOnRequest(r)
   return r, nil
 }
 
 func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http.Response) {
+  p.applyRequestLimitOnResponse(r)
   return r
 }
 
