@@ -23,22 +23,34 @@ import (
  */
 type MasterProxy struct {
   slaveProxies Slaves
+  throttleConfig ThrottleConfig
 }
 
 type Slaves interface {
   GetAddresses() []string
 }
 
-func NewMasterProxy(slaveProxies Slaves) *MasterProxy {
-  master := MasterProxy{slaveProxies: slaveProxies}
-  return &master
-}
 
 /* handle an incoming request
    does nothing for now
 */
 func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
   return r, nil
+}
+
+func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http.Response) {
+  return r
+}
+
+func (p *MasterProxy) applyRequestLimitOnRequest(r *http.Request) {
+  if p.throttleConfig.MaxConcurrentRequestsPerDomain != nil {
+  }
+}
+
+func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
+  if p.throttleConfig.MaxConcurrentRequestsPerDomain != nil {
+
+  }
 }
 
 /* handle a request on its way out to be proxied */
@@ -59,7 +71,13 @@ func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
 
 type MasterProxyConfig struct {
   slaveProxyPort uint16
+  throttleConfig ThrottleConfig
 }
+
+type ThrottleConfig struct {
+  MaxConcurrentRequestsPerDomain *int
+}
+
 
 func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
 
@@ -68,13 +86,14 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   // launch handling of slave proxies
   go slaveProxies.Run()
 
-  masterProxy := NewMasterProxy(slaveProxies)
+  masterProxy := MasterProxy{slaveProxies: slaveProxies, throttleConfig: config.throttleConfig}
 
   proxy := goproxy.NewProxyHttpServer()
 
   transport := &http.Transport{Proxy: masterProxy.Proxy}
   proxy.Tr = transport
   proxy.OnRequest().DoFunc(masterProxy.OnRequest)
+  proxy.OnResponse().DoFunc(masterProxy.OnResponse)
 
   return proxy
 }

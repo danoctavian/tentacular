@@ -43,7 +43,7 @@ func main() {
     proxyServer = NewSlaveProxyServer(SlaveProxyConfig{port: *port, masterURL: *url})
   }
 
-  proxyServer.Verbose = true
+  proxyServer.Verbose = false
 
   log.Println("... on port " + strconv.Itoa(int(*port)))
 
