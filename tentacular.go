@@ -23,6 +23,8 @@ func main() {
 
   urlString := flag.String("masterurl", "http://127.0.0.1:6666", "url of the master proxy")
 
+  maxRequests := flag.Int("maxConcReq", -1, "max concurrent requests to a single domain.")
+
   flag.Parse()
 
   var proxyServer *goproxy.ProxyHttpServer = nil
@@ -30,7 +32,13 @@ func main() {
   switch (*proxyType) {
   case MASTER:
     log.Print("Launching a master proxy")
-    proxyServer = NewMasterProxyServer(MasterProxyConfig{slaveProxyPort: uint16(*slaveport)})
+    if *maxRequests == -1 {
+      maxRequests = nil
+    } else {
+      log.Print("applying max concurrent requests per domain limit of %i", maxRequests)
+    }
+    throttle := ThrottleConfig{MaxConcurrentRequestsPerDomain: maxRequests}
+    proxyServer = NewMasterProxyServer(MasterProxyConfig{slaveProxyPort: uint16(*slaveport), throttleConfig: throttle})
   case SLAVE:
     url, err := url.Parse(*urlString)
 

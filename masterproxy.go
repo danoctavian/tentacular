@@ -47,27 +47,22 @@ func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http
   return r
 }
 
-
 // FIXME: there is no cleanup for the domain semaphore once created. this can become a problem
 func (p *MasterProxy) applyRequestLimitOnRequest(r *http.Request) {
   if p.hasConcurrentRequestLimit() {
     keyHash, key := addrKeyHash(r.RemoteAddr)
-    domainSemaphore := p.domainSemaphores.Get(keyHash, key).(Semaphore)
-    if domainSemaphore != nil {
-      domainSemaphore.Acquire(1)
-    } else {
-      semaphore := make(Semaphore, *p.throttleConfig.MaxConcurrentRequestsPerDomain)
-      p.domainSemaphores.Add(keyHash, key, semaphore)
-    }
+    semaphore := make(Semaphore, *p.throttleConfig.MaxConcurrentRequestsPerDomain)
+    value := p.domainSemaphores.GetOrElsePut(keyHash, key, semaphore)
+    value.(Semaphore).Acquire(1)
   }
 }
 
 func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
   if p.hasConcurrentRequestLimit() {
     keyHash, key := addrKeyHash(r.Request.RemoteAddr)
-    domainSemaphore := p.domainSemaphores.Get(keyHash, key).(Semaphore)
-    if domainSemaphore != nil {
-      domainSemaphore.Release(1)
+    value := p.domainSemaphores.Get(keyHash, key)
+    if value != nil {
+      value.(Semaphore).Release(1)
     } else {
       panic("Cannot have a response before a request.")
     }
@@ -75,7 +70,7 @@ func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
 }
 
 /* handle a request on its way out to be proxied */
-func (p* MasterProxy) Proxy(*http.Request) (*url.URL, error) {
+func (p* MasterProxy) Proxy(r *http.Request) (*url.URL, error) {
   slaves := p.slaveProxies.GetAddresses()
 
   slaveCount := len(slaves)
@@ -119,6 +114,15 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   transport := &http.Transport{Proxy: masterProxy.Proxy}
   proxy.Tr = transport
   proxy.OnRequest().DoFunc(masterProxy.OnRequest)
+
+  /*
+  FIXME re-enable once you figure out why https doesn't go through handler functions.
+  proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+    log.Println("gone through CONNECT handler")
+    return goproxy.OkConnect, host
+  })
+  */
+
   proxy.OnResponse().DoFunc(masterProxy.OnResponse)
 
   return proxy

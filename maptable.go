@@ -47,6 +47,20 @@ func (mt *MapTable) Get(keyHash uint32, key interface{}) interface{} {
   return (*bucket.contents)[key]
 }
 
+func (mt *MapTable) GetOrElsePut(keyHash uint32, key interface{}, value interface{}) interface{} {
+  bucket := mt.getBucket(keyHash)
+
+  bucket.mutex.Lock()
+  defer bucket.mutex.Unlock()
+  currentValue, present := (*bucket.contents)[key]
+  if present {
+    return currentValue
+  } else {
+    (*bucket.contents)[key] = value
+    return value
+  }
+}
+
 func (mt *MapTable) Delete(keyHash uint32, key interface{}) {
   bucket := mt.getBucket(keyHash)
 
@@ -67,6 +81,7 @@ func (mt *MapTable) Has(keyHash uint32, key interface{}) bool {
 func (mt *MapTable) getBucket(keyHash uint32) Bucket {
   return mt.table[int(keyHash) % len(mt.table)]
 }
+
 
 /* HASHING METHODS */
 func HashString(s string) uint32 {
