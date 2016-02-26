@@ -54,6 +54,12 @@ func NewSlaveProxyServer(config SlaveProxyConfig) *goproxy.ProxyHttpServer {
   }()
 
   proxy := goproxy.NewProxyHttpServer()
+
+  proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+    log.Println("gone through CONNECT handler")
+    return goproxy.OkConnect, host
+  })
+
   proxy.Verbose = true
   return proxy
 }

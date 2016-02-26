@@ -7,6 +7,7 @@ import (
   "math/rand"
   "errors"
   "net"
+  "log"
 )
 
 /*
@@ -38,11 +39,13 @@ type Slaves interface {
    does nothing for now
 */
 func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
+  log.Println("sent request")
   p.applyRequestLimitOnRequest(r)
   return r, nil
 }
 
 func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http.Response) {
+  log.Println("received response")
   p.applyRequestLimitOnResponse(r)
   return r
 }
@@ -70,7 +73,8 @@ func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
 }
 
 /* handle a request on its way out to be proxied */
-func (p* MasterProxy) Proxy(r *http.Request) (*url.URL, error) {
+func (p* MasterProxy) Proxy() (*url.URL, error) {
+  log.Println("running proxy logic")
   slaves := p.slaveProxies.GetAddresses()
 
   slaveCount := len(slaves)
@@ -102,7 +106,6 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
   // launch handling of slave proxies
   go slaveProxies.Run()
 
-
   masterProxy := MasterProxy{slaveProxies: slaveProxies, throttleConfig: config.throttleConfig}
   if masterProxy.hasConcurrentRequestLimit() {
     mapTable := NewMapTable(1000)
@@ -111,19 +114,15 @@ func NewMasterProxyServer(config MasterProxyConfig) *goproxy.ProxyHttpServer {
 
   proxy := goproxy.NewProxyHttpServer()
 
-  transport := &http.Transport{Proxy: masterProxy.Proxy}
+  transport := &http.Transport{Proxy: func(r *http.Request) (*url.URL, error) {
+    return masterProxy.Proxy()
+  }}
   proxy.Tr = transport
   proxy.OnRequest().DoFunc(masterProxy.OnRequest)
 
-  /*
-  FIXME re-enable once you figure out why https doesn't go through handler functions.
-  proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
-    log.Println("gone through CONNECT handler")
-    return goproxy.OkConnect, host
-  })
-  */
-
   proxy.OnResponse().DoFunc(masterProxy.OnResponse)
+
+  proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
   return proxy
 }
