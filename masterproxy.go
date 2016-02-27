@@ -39,13 +39,11 @@ type Slaves interface {
    does nothing for now
 */
 func (p *MasterProxy) OnRequest(r *http.Request,ctx *goproxy.ProxyCtx)(*http.Request,*http.Response) {
-  log.Println("sent request")
   p.applyRequestLimitOnRequest(r)
   return r, nil
 }
 
 func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http.Response) {
-  log.Println("received response")
   p.applyRequestLimitOnResponse(r)
   return r
 }
@@ -74,7 +72,6 @@ func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
 
 /* handle a request on its way out to be proxied */
 func (p* MasterProxy) Proxy() (*url.URL, error) {
-  log.Println("running proxy logic")
   slaves := p.slaveProxies.GetAddresses()
 
   slaveCount := len(slaves)
