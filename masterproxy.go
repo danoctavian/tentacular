@@ -7,7 +7,6 @@ import (
   "math/rand"
   "errors"
   "net"
-  "log"
 )
 
 /*
