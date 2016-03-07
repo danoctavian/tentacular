@@ -7,6 +7,7 @@ import (
   "math/rand"
   "errors"
   "net"
+  "log"
 )
 
 /*
@@ -33,6 +34,10 @@ type Slaves interface {
   GetAddresses() []string
 }
 
+type ProxyStatus struct {
+  concurrentRequestsPerDomain map[string] int `json:"concurrentRequestsPerDomain"`
+  slaves []string `json:"slaves"`
+}
 
 /* handle an incoming request
    does nothing for now
@@ -50,7 +55,7 @@ func (p *MasterProxy) OnResponse(r *http.Response, ctx *goproxy.ProxyCtx) (*http
 // FIXME: there is no cleanup for the domain semaphore once created. this can become a problem
 func (p *MasterProxy) applyRequestLimitOnRequest(r *http.Request) {
   if p.hasConcurrentRequestLimit() {
-    keyHash, key := addrKeyHash(r.RemoteAddr)
+    keyHash, key := addrKeyHash(r.URL.String())
     semaphore := make(Semaphore, *p.throttleConfig.MaxConcurrentRequestsPerDomain)
     value := p.domainSemaphores.GetOrElsePut(keyHash, key, semaphore)
     value.(Semaphore).Acquire(1)
@@ -59,7 +64,7 @@ func (p *MasterProxy) applyRequestLimitOnRequest(r *http.Request) {
 
 func (p *MasterProxy) applyRequestLimitOnResponse(r *http.Response) {
   if p.hasConcurrentRequestLimit() {
-    keyHash, key := addrKeyHash(r.Request.RemoteAddr)
+    keyHash, key := addrKeyHash(r.Request.URL.String())
     value := p.domainSemaphores.Get(keyHash, key)
     if value != nil {
       value.(Semaphore).Release(1)
